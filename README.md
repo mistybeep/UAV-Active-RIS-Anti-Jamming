@@ -1,4 +1,4 @@
-# QoS-Aware Anti-Jamming Communication in Fluid Antenna Systems: Continuous or Discrete Position Design?
+# Anti-Jamming Transmission with UAV-Mounted Active Reconfigurable Intelligent Surfaces
 
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2023b-blue.svg)](https://www.mathworks.com/products/matlab.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -34,7 +34,7 @@ Since the formulated problem is highly coupled and non-convex, we develop an eff
 If you use these algorithms or ideas in your research, please cite:
 
 ```bibtex
-@article{YourName2026QoS,
+@article{TvTAnti-Jamming,
   title={Anti-Jamming Transmission with UAV-Mounted Active Reconfigurable Intelligent Surfaces},
   author={Hao Wang, Yifan Guo, Junshan Luo, and Shilian Wang},
   journal={{IEEE} Trans. Veh. Technol.},
