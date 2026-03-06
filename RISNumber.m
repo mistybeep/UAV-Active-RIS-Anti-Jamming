@@ -1,6 +1,6 @@
 clear;
 close all;
-rng(42);
+rng(2026);
 
 % ============== System parameters ============== 
 Nt = 8;
@@ -9,37 +9,39 @@ nIRScol = 9;
 Ns = nIRSrow*nIRScol;
 K = 3;
 R = 2;
-Pt = db2pow(40 - 30);
-P2 = db2pow(50 - 30);
-P = 500; % -20dB
+Pt = db2pow(30 - 30);
+P2 = db2pow(20 - 30);
+P = Pt./(R * 1e-2);
 f = 3e9;
 c = 3e8;
 Lambda = c/f;
-N0 = db2pow(-174-30);
-B = 20e6;
-% sigma = sqrt(B*N0);
 sigma = 1e-5; % -70dBm
 alphaMax = 10; % amplification gain
 alpha = 2.2;
 epsilon = 1e-2;
 relChange = 1e3;
 
+addpath("function\");
 % --- 并行设置 ---
-delete(gcp('nocreate'));
-numWorkers = 15;
-parpool('local', numWorkers);
-addAttachedFiles(gcp, {'D:\Software\MATLAB\R2023b\bin\cvx'});
+% delete(gcp('nocreate'));
+% numWorkers = 12;
+% parpool('local', numWorkers);
 
-nIRScolNumber = 4:9;
+nIRScolNumber = 2:9;
 % NsNumber = nIRSrow .* nIRScolNumber;
 
-PropRISNumSimuRes = zeros(length(nIRScolNumber), 1);
+PropRISNumSimuRes = zeros(11, length(nIRScolNumber));
+SDRRISNumSimuRes = zeros(11, length(nIRScolNumber));
+MMRISNumSimuRes = zeros(11, length(nIRScolNumber));
+PassiveRISNumSimuRes = zeros(11, length(nIRScolNumber));
+PropStaticRISNumSimuRes = zeros(11, length(nIRScolNumber));
 
 load('RISNumDataSet.mat', "thetaVecCurrentDataSet", "G_NLoSDataSet", "g_NLoSDataSet", "h_NLoSDataSet");
 
 for n = 1 : length(nIRScolNumber)
 
     nIRScol = nIRScolNumber(n);
+    nIRSrow = nIRScol;
     Ns = nIRSrow * nIRScol;
 
     thetaVecCurrent = thetaVecCurrentDataSet{n};
@@ -47,98 +49,32 @@ for n = 1 : length(nIRScolNumber)
     fprintf(' ------- Current Number Of Active RIS: %d ------- \n', Ns);
 
     resPropFinal = cell(100, 1);
+    resSDRFinal = cell(100, 1);
+    resMMFinal = cell(100, 1);
+    resPropPassiveFinal = cell(100, 1);
+    resPropStaticFinal = cell(100, 1);
     % --- Simulation ---
     tic
     parfor iter = 1 : 100
         fprintf(' === Monte Carlo Simulation: %d === \n', iter);
+        % tic
         resPropFinal{iter} = mainFucProp(Nt, nIRSrow, nIRScol, Ns, K, R, Pt, P2, P, Lambda, sigma, alphaMax, alpha, epsilon, thetaVecCurrent, G_NLoSDataSet{iter, n}, g_NLoSDataSet{iter, n}, h_NLoSDataSet{iter, n}, iter);
+        % % 
+        resPropStaticFinal{iter} = mainFucPropStatic(Nt, nIRSrow, nIRScol, Ns, K, R, Pt, P2, P, Lambda, sigma, alphaMax, alpha, epsilon, thetaVecCurrent, G_NLoSDataSet{iter, n}, g_NLoSDataSet{iter, n}, h_NLoSDataSet{iter, n}, iter);
+
+        resSDRFinal{iter} = mainFucSDR(Nt, nIRSrow, nIRScol, Ns, K, R, Pt, P2, P, Lambda, sigma, alphaMax, alpha, epsilon, thetaVecCurrent, G_NLoSDataSet{iter, n}, g_NLoSDataSet{iter, n}, h_NLoSDataSet{iter, n}, iter);
+        % 
+        resMMFinal{iter} = mainFucMM(Nt, nIRSrow, nIRScol, Ns, K, R, Pt, P2, P, Lambda, sigma, alphaMax, alpha, epsilon, thetaVecCurrent, G_NLoSDataSet{iter, n}, g_NLoSDataSet{iter, n}, h_NLoSDataSet{iter, n}, iter);
+
+        resPropPassiveFinal{iter} = mainFucPropPassive(Nt, nIRSrow, nIRScol, Ns, K, R, Pt, P2, P, Lambda, sigma, 1, alpha, epsilon, thetaVecCurrent./alphaMax, G_NLoSDataSet{iter, n}, g_NLoSDataSet{iter, n}, h_NLoSDataSet{iter, n}, iter);
+        % toc
     end
     toc
-    PropRISNumSimuRes(n) = mean(cell2mat(resPropFinal));
+    PropStaticRISNumSimuRes(:, n) = mean(reshape(cell2mat(resPropStaticFinal), 11, []), 2);
+    PropRISNumSimuRes(:, n) = mean(reshape(cell2mat(resPropFinal), 11, []), 2);
+    SDRRISNumSimuRes(:, n) = mean(reshape(cell2mat(resSDRFinal), 11, []), 2);
+    MMRISNumSimuRes(:, n) = mean(reshape(cell2mat(resMMFinal), 11, []), 2);
+    PassiveRISNumSimuRes(:, n) = mean(reshape(cell2mat(resPropPassiveFinal), 11, []), 2);
 end
-
-save("RISNumberRes.mat", "PropRISNumSimuRes");
-
-function res = mainFucProp(Nt, nIRSrow, nIRScol, Ns, K, R, Pt, P2, P, Lambda, sigma, alphaMax, alpha, epsilon, thetaVecCurrent, G_NLoS, g_NLoS, h_NLoS, iter)
-    
-    % ============= initialization =============   
-    iIter = 0;
-    locCurrent = [50, 50, 60];
-
-    % ============= IRS beamforming vector initialization  
-    thetaMatCurrent = diag(thetaVecCurrent);
-    
-    % ============= Channel generation and normalization 
-    [G, GBar, g, gBar, h, hBar, locU, locJam, locBS] = ChanGen(Nt, K, R, nIRSrow, nIRScol, locCurrent, G_NLoS, g_NLoS, h_NLoS, Lambda);
-    G = G / sigma;
-    g = g / sigma;
-    dCurrent = (h' * thetaMatCurrent * G)';
-    gCurrent = h' * thetaMatCurrent * g;
-    
-    % ============= Transmit beamformer initialization
-    wCurrent = initialW(Nt, K, dCurrent, gCurrent, h, G, g, thetaMatCurrent, Pt, P2, P);
-    [tCurrent, muCurrent] = K_update_SINR(wCurrent, dCurrent, gCurrent, thetaMatCurrent, h, P, K);
-    
-    % ============= 
-    realChange = 1;
-    
-    tIter = 10*log10(tCurrent);
-    
-    while realChange >= epsilon && iIter < 20
-    
-        iIter = iIter+1;
-        
-        IterD = 0;
-        while IterD < 20
-            IterD = IterD + 1;
-            [locCurrent, G, g, h] = updateDeployment(Nt, K, Ns, R, GBar, gBar, hBar, wCurrent, thetaMatCurrent, tCurrent, muCurrent, locCurrent', locU', locJam', locBS', alpha, P, P2);
-            locCurrent = locCurrent';
-            % [G, GBar, g, gBar, h, hBar, locU, locJam, locBS] = ChanGen(Nt, K, R, nIRSrow, nIRScol, locCurrent, G_NLoS, g_NLoS, h_NLoS, Lambda);
-            G = G / sigma;
-            g = g / sigma;
-            dCurrent = (h' * thetaMatCurrent * G)';
-            gCurrent = h' * thetaMatCurrent * g;
-    
-            [tNew, muNew] = K_update_SINR(wCurrent, dCurrent, gCurrent, thetaMatCurrent, h, P, K);
-            if abs(10*log10(tNew) - 10*log10(tCurrent)) > 1e-3
-                tCurrent = tNew;
-                muCurrent = muNew;
-            else
-                break;
-            end
-        end
-
-        [G, GBar, g, gBar, h, hBar, locU, locJam, locBS] = ChanGen(Nt, K, R, nIRSrow, nIRScol, locCurrent, G_NLoS, g_NLoS, h_NLoS, Lambda);
-        G = G / sigma;
-        g = g / sigma;
-        dCurrent = (h' * thetaMatCurrent * G)';
-        gCurrent = h' * thetaMatCurrent * g;
-
-        IterD = 0;
-        while IterD < 20
-            IterD = IterD + 1;
-            [W, thetaMat] = updateBeam(Nt, K, Ns, R, thetaMatCurrent, wCurrent, dCurrent, tCurrent, muCurrent, G, g, h, Pt, P2, P, alphaMax);
-    
-            wCurrent = W;
-            thetaMatCurrent = thetaMat;
-            dCurrent = (h' * thetaMatCurrent * G)';
-            gCurrent = h' * thetaMatCurrent * g;
-            [tNew, muNew] = K_update_SINR(wCurrent, dCurrent, gCurrent, thetaMatCurrent, h, P, K);
-            if abs(10*log10(tNew) - 10*log10(tCurrent)) > 1e-3
-                tCurrent = tNew;
-                muCurrent = muNew;
-            else
-                break;
-            end
-        end
-
-        realChange = abs(10*log10(tCurrent) - tIter(end));
-    
-        tIter = [tIter, 10*log10(tCurrent)];
-
-    end
-
-    [tCurrent, ~] = K_update_SINR(wCurrent, dCurrent, gCurrent, thetaMatCurrent, h, P, K);
-    res = 10*log10(tCurrent);
-
-end
+% save("Prop_StaticRISNumRes.mat", "PropStaticRISNumSimuRes");
+save("RISNumberRes.mat", "PropRISNumSimuRes", "SDRRISNumSimuRes", "MMRISNumSimuRes", "PassiveRISNumSimuRes", "PropStaticRISNumSimuRes");
