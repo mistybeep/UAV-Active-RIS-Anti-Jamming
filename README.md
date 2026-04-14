@@ -34,9 +34,14 @@ Since the formulated problem is highly coupled and non-convex, we develop an eff
 If you use these algorithms or ideas in your research, please cite:
 
 ```bibtex
-@article{TvTAnti-Jamming,
-  title={Anti-Jamming Transmission with UAV-Mounted Active Reconfigurable Intelligent Surfaces},
-  author={Hao Wang, Yifan Guo, Junshan Luo, and Shilian Wang},
-  journal={{IEEE} Trans. Veh. Technol.},
-  year={2026}
-}
+@ARTICLE{11479934,
+  author={Wang, Hao and Guo, Yifan and Luo, Junshan and Wang, Shilian},
+  journal={IEEE Transactions on Vehicular Technology}, 
+  title={Anti-Jamming Transmission With UAV-Mounted Active Reconfigurable Intelligent Surfaces}, 
+  year={2026},
+  volume={},
+  number={},
+  pages={1-6},
+  keywords={Jamming;Electronic warfare;Antennas;Antennas and propagation;Broadcasting;Broadcast technology;Thermal noise;Communication systems;Internet of Things;Wireless communication;Unmanned aerial vehicle;active reconfigurable intelligent surface;anti-jamming;max-min fairness},
+  doi={10.1109/TVT.2026.3682788}}
+
